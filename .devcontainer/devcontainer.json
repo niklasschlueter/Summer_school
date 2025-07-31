@@ -1,0 +1,66 @@
+{
+  "name": "ros-jazzy",
+  "privileged": false,
+  "remoteUser": "robot",
+  "build": {"dockerfile":"Dockerfile"},
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:1": {
+      "version": "latest",
+      "configureZshAsDefaultShell": false,
+      "username": "robot",
+    },
+    "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
+      "packages":  "stow,tmux,ripgrep,fd-find,git-gui,python3-argcomplete,python-is-python3"
+    },
+    "ghcr.io/devcontainers/features/node:1": {}  // for stuff like copilot, lsp
+  },
+  "containerEnv": {
+    "ROS_LOCALHOST_ONLY": "1",
+    "DISPLAY": "unix:0"
+  },
+  "runArgs": [
+    "--net=host",
+    "-e",
+    "DISPLAY=${env:DISPLAY}",
+    "-e",
+    "TERM=${env:TERM}"
+  ],
+  "workspaceFolder": "/home/robot/colcon_ws",
+  "workspaceMount": "source=${localWorkspaceFolder}/colcon_ws,target=/home/robot/colcon_ws,type=bind,consistency=cached",
+  "mounts": [
+    {
+      "source": "/tmp/.X11-unix",
+      "target": "/tmp/.X11-unix",
+      "type": "bind",
+      "consistency": "cached"
+    },
+    {
+      "source": "/dev/dri",
+      "target": "/dev/dri",
+      "type": "bind",
+      "consistency": "cached"
+    },
+    {
+      "source": "/dev/shm",
+      "target": "/dev/shm",
+      "type": "bind",
+      "consistency": "cached"
+    }
+  ],
+  "postCreateCommand": {
+    "video-group": "sudo usermod -aG video robot",
+    "node-install": ". ${NVM_DIR}/nvm.sh && nvm install --lts",
+    "update": "sudo apt update && sudo apt dist-upgrade -y && rosdep update",
+    "install-mixins": "colcon mixin add default https://raw.githubusercontent.com/colcon/colcon-mixin-repository/master/index.yaml && colcon mixin update default",
+    "source-ros": "echo 'source /opt/ros/jazzy/setup.bash' >> /home/robot/.bashrc",
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "Ranch-Hand-Robotics.rde-ros-2",
+        "mechatroner.rainbow-csv"
+      ]
+    }
+  }
+}
