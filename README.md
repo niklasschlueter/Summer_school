@@ -12,6 +12,9 @@ How to setup the robot:
 How to start the driver:
 [Starting the driver](https://docs.universal-robots.com/Universal_Robots_ROS2_Documentation/doc/ur_robot_driver/ur_robot_driver/doc/usage/startup.html)
 
+Read about the motion controllers used with the driver: 
+[Controllers](https://docs.universal-robots.com/Universal_Robots_ROS2_Documentation/doc/ur_robot_driver/ur_controllers/doc/index.html)
+
 Once the driver is started, you can run your own scripts in a different terminal.
 
 # Details about the container
