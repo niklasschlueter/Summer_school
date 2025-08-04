@@ -40,7 +40,8 @@ class DataRecorder(Node):
             self.speed_scaling_callback,
             10
         )
-
+    
+    # Both topics are published at 500 Hz, but rclpy is not necessarily able to keep up with that rate.
     def joint_states_callback(self, msg: JointState):
         with self.lock:
             self.joint_states_data.append({
@@ -69,18 +70,19 @@ class DataRecorder(Node):
 class URTrajectoryExecutor(Node):
     def __init__(self):
         super().__init__('ur_trajectory_executor')
-        # Can be changed to whatever motion controller you want.
-        # passthrough_trajectory_controller uses the same action definition, and might lighten the load on your computer.
+        # Can be changed to whatever motion controller you want. Just be aware of what action definition the controller uses.
+        # passthrough_trajectory_controller uses the same action definition, and might lighten the load on your computer, but does not publish feedback.
         self.trajectory_client = ActionClient(
             self, FollowJointTrajectory, '/scaled_joint_trajectory_controller/follow_joint_trajectory'
         )
         self.trajectory_client.wait_for_server()
+        self.feedback = []
 
     def send_trajectory(self, trajectory: JointTrajectory):
         goal = FollowJointTrajectory.Goal()
         goal.trajectory = trajectory
         goal.goal_time_tolerance = Duration(sec=1, nanosec=0)
-        future = self.trajectory_client.send_goal_async(goal)
+        future = self.trajectory_client.send_goal_async(goal, feedback_callback=self.feedback_callback)
         rclpy.spin_until_future_complete(self, future)
         goal_handle = future.result()
         if not goal_handle.accepted:
@@ -91,6 +93,22 @@ class URTrajectoryExecutor(Node):
         rclpy.spin_until_future_complete(self, result_future)
         print('Trajectory execution finished')
         return result_future.result()
+    
+    # Feedback is published at 20 Hz. The topic subsciption above is faster, but not very consistent, in terms of timing.
+    def feedback_callback(self, feedback):
+        feedback_msg = feedback.feedback
+        self.feedback.append({
+            'timestamp': self.get_clock().now().nanoseconds * 1e-9,
+            'joint_names': feedback_msg.joint_names,
+            'desired_positions': list(feedback_msg.desired.positions),
+            'actual_positions': list(feedback_msg.actual.positions),
+            'error_positions': list(feedback_msg.error.positions),
+            'desired_velocities': list(feedback_msg.desired.velocities),
+            'actual_velocities': list(feedback_msg.actual.velocities),
+        })
+
+    def get_feedback_df(self):
+        return pd.DataFrame(self.feedback)
 
 def main():
     rclpy.init()
@@ -134,6 +152,7 @@ def main():
     speed_scaling_df = recorder.get_speed_scaling_df()
     joint_states_df.to_csv('joint_states_log.csv', index=False)
     speed_scaling_df.to_csv('speed_scaling_log.csv', index=False)
+    robot.get_feedback_df().to_csv('trajectory_feedback_log.csv', index=False)
     print('Data saved to joint_states_log.csv and speed_scaling_log.csv')
 
     rclpy.shutdown()
