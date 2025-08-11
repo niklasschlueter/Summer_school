@@ -1,5 +1,15 @@
 FROM ros:jazzy
 
+#ENV DEBIAN_FRONTEND=noninteractive
+#ENV PIP_BREAK_SYSTEM_PACKAGES=1
+
+# Copy local modified install script into the image
+COPY install-ompl-ubuntu.sh /home/ubuntu/install-ompl-ubuntu.sh
+
+# Make it executable and run it
+# RUN cd /home/ubuntu && chmod u+x install-ompl-ubuntu.sh && export PIP_BREAK_SYSTEM_PACKAGES=1 && ./install-ompl-ubuntu.sh --python
+RUN cd /home/ubuntu && chmod u+x install-ompl-ubuntu.sh && ./install-ompl-ubuntu.sh --python
+
 # Finding the right gazebo version: https://gazebosim.org/docs/harmonic/ros_installation/#summary-of-compatible-ros-and-gazebo-combinations
 
 # Install build tools
@@ -29,4 +39,9 @@ RUN apt-get update && apt-get install -y \
   ros-jazzy-ur \
   ros-jazzy-ur-simulation-gz \
   ros-jazzy-ur-controllers \
-  ros-jazzy-ur-robot-driver
+  ros-jazzy-ur-robot-driver \
+  #libompl-dev \
+  #ompl-demos \
+  vim \
+  wget
+

@@ -61,6 +61,12 @@ Inside the container, run rviz to check the GUI is working:
 rviz2
 ```
 
+Also check ompl is working:
+```
+python3 /home/ubuntu/colcon_ws/src/execute_trajectories/execute_trajectories/scripts/ompl_example.py
+```
+
+
 #### Run 
 To launch the sim do 
 ```
