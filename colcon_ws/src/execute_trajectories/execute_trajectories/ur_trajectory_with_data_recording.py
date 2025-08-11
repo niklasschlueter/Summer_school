@@ -11,6 +11,11 @@ import numpy as np
 import threading
 import time
 
+from pathlib import Path
+project_dir = Path(__file__).resolve().parents[0]
+data_dir = project_dir / "data"
+plots_dir = project_dir / "plots"
+
 ROBOT_JOINTS = [
     'shoulder_pan_joint',
     'shoulder_lift_joint',
@@ -123,11 +128,13 @@ def main():
     t.points = [
         JointTrajectoryPoint(
             positions=[pos-np.pi/4 for pos in HOME],
+            #positions=[0, 0, 0, 0, 0, 0],
             velocities=[0.0] * 6,
             time_from_start=Duration(sec=5, nanosec=0)
         ),
         JointTrajectoryPoint(
             positions=[pos+np.pi/4 for pos in HOME],
+            #positions=[0.5, 0.4, 1.3, 1.0, 1.1, 2.0],
             velocities=[0.0] * 6,
             time_from_start=Duration(sec=10, nanosec=0)
         )
@@ -150,9 +157,9 @@ def main():
     # Save data
     joint_states_df = recorder.get_joint_states_df()
     speed_scaling_df = recorder.get_speed_scaling_df()
-    joint_states_df.to_csv('joint_states_log.csv', index=False)
-    speed_scaling_df.to_csv('speed_scaling_log.csv', index=False)
-    robot.get_feedback_df().to_csv('trajectory_feedback_log.csv', index=False)
+    joint_states_df.to_csv(data_dir / 'joint_states_log.csv', index=False)
+    speed_scaling_df.to_csv(data_dir / 'speed_scaling_log.csv', index=False)
+    robot.get_feedback_df().to_csv(data_dir / 'trajectory_feedback_log.csv', index=False)
     print('Data saved to joint_states_log.csv and speed_scaling_log.csv')
 
     rclpy.shutdown()

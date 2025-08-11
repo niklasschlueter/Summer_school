@@ -35,3 +35,39 @@ The container should open, and you should be good to go.
 Documentation for CLI tool [here](https://github.com/devcontainers/cli/blob/main/README.md).
 
 If you are using neither, I would recommend using VS Code.
+
+
+## Additional Notes
+
+
+### Use the Docker Container with GUI:
+
+Allow local connections to your X server:
+```
+xhost +local:docker
+```
+After this you can either work with the devcontainer or start a seperate docker container:
+
+Run the container with X11 socket and environment variable:
+```
+docker run -it \
+  --env DISPLAY=$DISPLAY \
+  --env QT_X11_NO_MITSHM=1 \
+  --volume /tmp/.X11-unix:/tmp/.X11-unix \
+  <docker_image_name>
+```
+Inside the container, run rviz to check the GUI is working:
+```
+rviz2
+```
+
+#### Run 
+To launch the sim do 
+```
+ros2 launch ur_simulation_gz ur_sim_control.launch.py
+```
+In another terminal do 
+
+```
+python3 ur_trajectory_with_data_recording.py 
+```

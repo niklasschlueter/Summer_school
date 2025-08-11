@@ -1,13 +1,13 @@
 {
   "name": "ros-jazzy",
   "privileged": false,
-  "remoteUser": "robot",
+  "remoteUser": "ubuntu",
   "build": {"dockerfile":"Dockerfile"},
   "features": {
-    "ghcr.io/devcontainers/features/common-utils:1": {
+    "ghcr.io/devcontainers/features/common-utils:2.5.3": {
       "version": "latest",
       "configureZshAsDefaultShell": false,
-      "username": "robot",
+      "username": "ubuntu",
     },
     "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
       "packages":  "stow,tmux,ripgrep,fd-find,git-gui,python3-argcomplete,python-is-python3"
@@ -18,15 +18,17 @@
     "ROS_LOCALHOST_ONLY": "1",
     "DISPLAY": "unix:0"
   },
-  "runArgs": [
+ "runArgs": [
     "--net=host",
     "-e",
     "DISPLAY=${env:DISPLAY}",
     "-e",
-    "TERM=${env:TERM}"
+    "TERM=${env:TERM}",
+    //"-e", "QT_X11_NO_MITSHM=1",
+    //"-v", "/tmp/.X11-unix:/tmp/.X11-unix:rw"
   ],
-  "workspaceFolder": "/home/robot/colcon_ws",
-  "workspaceMount": "source=${localWorkspaceFolder}/colcon_ws,target=/home/robot/colcon_ws,type=bind,consistency=cached",
+  "workspaceFolder": "/home/ubuntu/colcon_ws",
+  "workspaceMount": "source=${localWorkspaceFolder}/colcon_ws,target=/home/ubuntu/colcon_ws,type=bind,consistency=cached",
   "mounts": [
     {
       "source": "/tmp/.X11-unix",
@@ -48,17 +50,17 @@
     }
   ],
   "postCreateCommand": {
-    "video-group": "sudo usermod -aG video robot",
+    "video-group": "sudo usermod -aG video ubuntu",
     "node-install": ". ${NVM_DIR}/nvm.sh && nvm install --lts",
     "update": "sudo apt update && sudo apt dist-upgrade -y && rosdep update",
     "install-mixins": "colcon mixin add default https://raw.githubusercontent.com/colcon/colcon-mixin-repository/master/index.yaml && colcon mixin update default",
-    "source-ros": "echo 'source /opt/ros/jazzy/setup.bash' >> /home/robot/.bashrc",
+    "source-ros": "echo 'source /opt/ros/jazzy/setup.bash' >> /home/ubuntu/.bashrc",
   },
   "customizations": {
     "vscode": {
       "extensions": [
         "ms-python.python",
-        "Ranch-Hand-Robotics.rde-ros-2",
+        "Ranch-Hand-ubuntuics.rde-ros-2",
         "mechatroner.rainbow-csv"
       ]
     }

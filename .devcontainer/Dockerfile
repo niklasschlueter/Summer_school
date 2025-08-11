@@ -1,5 +1,7 @@
 FROM ros:jazzy
 
+# Finding the right gazebo version: https://gazebosim.org/docs/harmonic/ros_installation/#summary-of-compatible-ros-and-gazebo-combinations
+
 # Install build tools
 RUN apt-get update && apt-get install -y \ 
   python3-colcon-common-extensions \
@@ -21,4 +23,10 @@ RUN apt-get update && apt-get install -y \
   python3-pip \
   python3-venv \
   ros-jazzy-ur \
-  python3-pandas
+  python3-pandas \
+  ros-jazzy-ros-gz \
+  ros-jazzy-ur-client-library \
+  ros-jazzy-ur \
+  ros-jazzy-ur-simulation-gz \
+  ros-jazzy-ur-controllers \
+  ros-jazzy-ur-robot-driver
