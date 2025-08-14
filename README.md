@@ -72,8 +72,20 @@ To launch the sim do
 ```
 ros2 launch ur_simulation_gz ur_sim_control.launch.py
 ```
+To run it with direct joint control run 
+
+```
+ros2 launch ur_robot_driver ur_control.launch.py ur_type:=ur5e robot_ip:=192.168.2.3 initial_joint_controller:=forward_position_controller
+```
+
 In another terminal do 
 
 ```
 python3 ur_trajectory_with_data_recording.py 
+```
+
+or for direct joint control:
+
+```
+python3 cubic_spline_v3.py 
 ```
