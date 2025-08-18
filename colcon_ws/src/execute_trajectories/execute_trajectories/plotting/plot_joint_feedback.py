@@ -29,7 +29,11 @@ actual_positions = np.array(df['actual_positions'].tolist())
 desired_velocities = np.array(df['desired_velocities'].tolist())
 actual_velocities = np.array(df['actual_velocities'].tolist())
 
-x = np.arange(num_samples)  # Sample indices
+# X-axis: sample indices
+x = np.arange(num_samples)
+t = np.array(df["timestamp"].tolist())
+t = t - t[0]
+x = t
 
 # Plot Positions
 plt.figure(figsize=(12, 6))

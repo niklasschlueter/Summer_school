@@ -43,5 +43,7 @@ RUN apt-get update && apt-get install -y \
   #libompl-dev \
   #ompl-demos \
   vim \
-  wget
+  wget \
+  ros-jazzy-moveit \
+  ros-jazzy-pinocchio
 

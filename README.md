@@ -70,7 +70,10 @@ python3 /home/ubuntu/colcon_ws/src/execute_trajectories/execute_trajectories/scr
 #### Run 
 To launch the sim do 
 ```
+# with default controller
 ros2 launch ur_simulation_gz ur_sim_control.launch.py
+# with direct joint control
+ros2 launch ur_simulation_gz ur_sim_control.launch.py initial_joint_controller:="forward_position_controller"
 ```
 To run it with direct joint control run 
 
@@ -87,5 +90,5 @@ python3 ur_trajectory_with_data_recording.py
 or for direct joint control:
 
 ```
-python3 cubic_spline_v3.py 
+python3 cubic_spline.py 
 ```

@@ -9,6 +9,7 @@ import math
 import argparse
 import time
 import threading
+import pinocchio as pin
 
 class CubicSplineTrajectoryPlanner(Node):
     def __init__(self):
@@ -253,4 +254,117 @@ def main():
     return 0
 
 if __name__ == '__main__':
+    model, collision_model, visual_model = pin.buildModelsFromUrdf("ur5e.urdf")
+    data, collision_data, visual_data = pin.createDatas(
+        model, collision_model, visual_model
+    )
+
+    q = np.array([0.0, -1.57, 0.0, -1.57, 0.0, 0.0])
+    #q = np.array([0.0, -1.57, 3.14, -1.57, 3.14, 0.0])
+    pin.forwardKinematics(model, data, q)
+    pin.updateFramePlacements(model, data)
+
+    # Update Geometry models
+    pin.updateGeometryPlacements(model, data, collision_model, collision_data)
+    pin.updateGeometryPlacements(model, data, visual_model, visual_data)
+
+    ## Print out the placement of each joint of the kinematic tree
+    #print("\nJoint placements:")
+    #for name, oMi in zip(model.names, data.oMi):
+    #    print("{:<24} : {: .2f} {: .2f} {: .2f}".format(name, *oMi.translation.T.flat))
+
+    ## Print out the placement of each collision geometry object
+    #print("\nCollision object placements:")
+    #for k, oMg in enumerate(collision_data.oMg):
+    #    print("{:d} : {: .2f} {: .2f} {: .2f}".format(k, *oMg.translation.T.flat))
+
+    ## Print out the placement of each visual geometry object
+    #print("\nVisual object placements:")
+    #for k, oMg in enumerate(visual_data.oMg):
+    #    print("{:d} : {: .2f} {: .2f} {: .2f}".format(k, *oMg.translation.T.flat))
+
+    def get_ee_position_and_rotation(model, data, q):
+        """Get end-effector position and orientation"""
+        pin.forwardKinematics(model, data, q)
+        pin.updateFramePlacements(model, data)
+        
+        ee_frame_id = model.getFrameId('tool0')
+        ee_position = data.oMf[ee_frame_id].translation
+        ee_rotation = data.oMf[ee_frame_id].rotation
+        
+        return ee_position, ee_rotation
+
+
+    collision_model.addAllCollisionPairs()
+
+    pin.removeCollisionPairs(model, collision_model, "ur5e.srdf")
+    print(
+        "num collision pairs - after removing useless collision pairs:",
+        len(collision_model.collisionPairs),
+    )
+
+    #pairs_to_remove = []
+    #for i, pair in enumerate(collision_model.collisionPairs):
+    #    geom1 = collision_model.geometryObjects[pair.first]
+    #    geom2 = collision_model.geometryObjects[pair.second]
+    #    j1, j2 = geom1.parentJoint, geom2.parentJoint
+    
+    #    if are_consecutive(model, j1, j2) or are_consecutive(model, j2, j1):
+    #        pairs_to_remove.append(i)
+    
+    #for i in sorted(pairs_to_remove, reverse=True):
+    #    collision_model.removeCollisionPair(i)
+
+    print("num collision pairs - initial:", len(collision_model.collisionPairs))
+
+    collision_data = pin.GeometryData(collision_model)
+
+    # Example configuration (home position)
+    #q = pin.neutral(model)
+
+    # Forward kinematics
+    pin.forwardKinematics(model, data, q)
+    pin.updateGeometryPlacements(model, data, collision_model, collision_data)
+
+    #collisions = pin.computeCollisions(model, collision_model, collision_data, q, False)  # last param: enableAllContacts=False
+    collisions = pin.computeCollisions(model, data, collision_model, collision_data, q, False)
+    print(f"\nCollision check results: {collisions}")
+
+    # Print the status of collision for all collision pairs
+    for k in range(len(collision_model.collisionPairs)):
+        cr = collision_data.collisionResults[k]
+        cp = collision_model.collisionPairs[k]
+        print(
+            "collision pair:",
+            cp.first,
+            ",",
+            cp.second,
+            "- collision:",
+            "Yes" if cr.isCollision() else "No",
+        )
+
+    ## Check collisions
+    #for k, pair in enumerate(collision_model.collisionPairs):
+    #    geom1 = collision_model.geometryObjects[pair.first]
+    #    geom2 = collision_model.geometryObjects[pair.second]
+    ##    res = collision_data.collisionResults[k]
+
+    #    #if pin.computeCollision(geom1, geom2, res):
+    #    #    if res.isCollision():
+    #    #        print(f"Collision between {geom1.name} and {geom2.name}")
+    #    #    else:
+    #    #        print(f"No collision between {geom1.name} and {geom2.name}")
+
+    # Get the frame ID of the end effector
+    #ee_frame_name = "tool0"   # or "ee_link" depending on your URDF
+    #ee_frame_id = model.getFrameId(ee_frame_name)
+    
+    ## Get placement (position + orientation)
+    #placement = data.oMf[ee_frame_id]
+    translation, rotation = get_ee_position_and_rotation(model, data, q)
+    
+    # Print results
+    print(f"End-effector translation (xyz): {translation}")
+    print(f"End-effector rotation matrix:\n{rotation}")
+
     main()
