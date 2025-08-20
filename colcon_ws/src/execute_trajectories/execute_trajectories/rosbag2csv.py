@@ -78,6 +78,8 @@ def dump_bag(bag_path):
     type_map = {topic_types[i].name: topic_types[i].type
                 for i in range(len(topic_types))}
 
+    print(f"Topics and types: {type_map}")
+
     file_map = {}
 
     start_time = None

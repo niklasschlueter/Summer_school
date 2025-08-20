@@ -24,6 +24,8 @@
     "DISPLAY=${env:DISPLAY}",
     "-e",
     "TERM=${env:TERM}",
+    "--gpus",
+    "all",
     //"-e", "QT_X11_NO_MITSHM=1",
     //"-v", "/tmp/.X11-unix:/tmp/.X11-unix:rw"
   ],

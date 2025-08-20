@@ -11,6 +11,8 @@ import time
 import threading
 import pinocchio as pin
 
+from utils import print_out_collision_results, update_pinocchio
+
 class CubicSplineTrajectoryPlanner(Node):
     def __init__(self):
         super().__init__('ur_trajectory_planner')
@@ -44,6 +46,30 @@ class CubicSplineTrajectoryPlanner(Node):
         self.trajectory_timer = None
         self.trajectory_points = []
         self.current_trajectory_index = 0
+
+
+        # Pinocchio setup
+        self.model, self.collision_model, self.visual_model = pin.buildModelsFromUrdf("ur5e.urdf")
+        self.data, self.collision_data, self.visual_data = pin.createDatas(
+            self.model, self.collision_model, self.visual_model
+        )
+
+
+        # setup_collision_model
+        self.collision_model.addAllCollisionPairs()
+
+        pin.removeCollisionPairs(self.model, self.collision_model, "ur5e.srdf")
+        print(
+            "num collision pairs - after removing useless collision pairs:",
+            len(self.collision_model.collisionPairs),
+        )
+
+        print("num collision pairs - initial:", len(self.collision_model.collisionPairs))
+
+        # not sure if necessary
+        self.collision_data = pin.GeometryData(self.collision_model)
+
+
         
     def joint_state_callback(self, msg):
         """Update current joint positions from joint_states topic"""
@@ -59,7 +85,7 @@ class CubicSplineTrajectoryPlanner(Node):
                     if i < len(msg.position):
                         joint_positions[i] = msg.position[i]
             
-            self.current_positions = joint_positions
+            self.current_positions = np.array(joint_positions)
     
     def cubic_spline_coefficients(self, q0, q1, qd0=0.0, qd1=0.0, duration=1.0):
         """Calculate cubic spline coefficients for position trajectory"""
@@ -110,7 +136,10 @@ class CubicSplineTrajectoryPlanner(Node):
     
     def execute_trajectory_point(self):
         """Execute one point of the trajectory"""
-        if (self.current_trajectory_index >= len(self.trajectory_points) or 
+        #print(f"current position: {self.current_positions}")
+        collision_flag = self.check_for_collisions(self.current_positions)
+
+        if collision_flag or (self.current_trajectory_index >= len(self.trajectory_points) or 
             not self.executing_trajectory):
             self.stop_trajectory()
             return
@@ -171,6 +200,17 @@ class CubicSplineTrajectoryPlanner(Node):
         while not self.is_trajectory_finished():
             time.sleep(0.1)
 
+    def check_for_collisions(self, q):
+        self.model, self.data, self.collision_model, self.collision_data, self.visual_model, self.visual_data = update_pinocchio(self.model, self.data, self.collision_model, self.collision_data, self.visual_model, self.visual_data, q)
+
+        collision_flag = pin.computeCollisions(self.model, self.data, self.collision_model, self.collision_data, q, False)
+
+        #print(f"\nCollision check results: {collision_flag}")
+        #print_out_collision_results(self.collision_model, self.collision_data)
+
+        return collision_flag
+
+
 def print_positions(positions, label="Positions"):
     """Print positions in a nice format"""
     if positions is None:
@@ -190,10 +230,11 @@ def main():
         'ready': [0.0, -1.57, 1.57, -1.57, -1.57, 0.0],
         'up': [0.0, -0.5, -1.0, -1.5, 0.0, 0.0],
         'side': [1.57, -1.57, 0.0, -1.57, 0.0, 0.0],
+        #'crash': [0.0, -1.57, 3.14, -1.57, 0.0, 0.0],
     }
 
-    duration = 3.0
-    target_positions = predefined_positions['up']  # Default to 'ready' position
+    duration = 10.0
+    target_positions = predefined_positions['home']  # Default to 'ready' position
     
     print(f"Target positions: {[f'{p:.3f}' for p in target_positions]}")
     
@@ -254,25 +295,10 @@ def main():
     return 0
 
 if __name__ == '__main__':
-    model, collision_model, visual_model = pin.buildModelsFromUrdf("ur5e.urdf")
-    data, collision_data, visual_data = pin.createDatas(
-        model, collision_model, visual_model
-    )
 
-    q = np.array([0.0, -1.57, 0.0, -1.57, 0.0, 0.0])
-    #q = np.array([0.0, -1.57, 3.14, -1.57, 3.14, 0.0])
+    #q = np.array([0.0, -1.57, 0.0, -1.57, 0.0, 0.0])
 
-    def update_pinocchio(model, data, collision_model, collision_data, visual_model, visual_data, q):
-        """Update Pinocchio model and data with given configuration q"""
-        # Update joint configuration
-        pin.framesForwardKinematics(model, data, q)
-        pin.updateFramePlacements(model, data)
-        
-        # Update geometry placements
-        pin.updateGeometryPlacements(model, data, collision_model, collision_data)
-        pin.updateGeometryPlacements(model, data, visual_model, visual_data)
 
-    update_pinocchio(model, data, collision_model, collision_data, visual_model, visual_data, q)
 
     ## Pinocchio Updates
     #pin.forwardKinematics(model, data, q)
@@ -281,79 +307,18 @@ if __name__ == '__main__':
     #pin.updateGeometryPlacements(model, data, collision_model, collision_data)
     #pin.updateGeometryPlacements(model, data, visual_model, visual_data)
 
-    def get_ee_position_and_rotation(model, data, q, update=True):
-        """Get end-effector position and orientation"""
-        if update:
-            pin.forwardKinematics(model, data, q)
-            pin.updateFramePlacements(model, data)
-        
-        ee_frame_id = model.getFrameId('tool0')
-        ee_position = data.oMf[ee_frame_id].translation
-        ee_rotation = data.oMf[ee_frame_id].rotation
-        
-        return ee_position, ee_rotation
 
 
-    collision_model.addAllCollisionPairs()
-
-    pin.removeCollisionPairs(model, collision_model, "ur5e.srdf")
-    print(
-        "num collision pairs - after removing useless collision pairs:",
-        len(collision_model.collisionPairs),
-    )
-
-    #pairs_to_remove = []
-    #for i, pair in enumerate(collision_model.collisionPairs):
-    #    geom1 = collision_model.geometryObjects[pair.first]
-    #    geom2 = collision_model.geometryObjects[pair.second]
-    #    j1, j2 = geom1.parentJoint, geom2.parentJoint
-    
-    #    if are_consecutive(model, j1, j2) or are_consecutive(model, j2, j1):
-    #        pairs_to_remove.append(i)
-    
-    #for i in sorted(pairs_to_remove, reverse=True):
-    #    collision_model.removeCollisionPair(i)
-
-    print("num collision pairs - initial:", len(collision_model.collisionPairs))
-
-    collision_data = pin.GeometryData(collision_model)
 
     # Example configuration (home position)
     #q = pin.neutral(model)
 
     # Forward kinematics
-    pin.forwardKinematics(model, data, q)
-    pin.updateGeometryPlacements(model, data, collision_model, collision_data)
+    #pin.forwardKinematics(model, data, q)
+    #pin.updateGeometryPlacements(model, data, collision_model, collision_data)
 
     # Check for collisions - True means at least one collision detected
-    collision_flag = pin.computeCollisions(model, data, collision_model, collision_data, q, False)
-    print(f"\nCollision check results: {collision_flag}")
 
-    # For debug
-    # Print the status of collision for all collision pairs
-    for k in range(len(collision_model.collisionPairs)):
-        cr = collision_data.collisionResults[k]
-        cp = collision_model.collisionPairs[k]
-        print(
-            "collision pair:",
-            cp.first,
-            ",",
-            cp.second,
-            "- collision:",
-            "Yes" if cr.isCollision() else "No",
-        )
-
-    ## Check collisions
-    #for k, pair in enumerate(collision_model.collisionPairs):
-    #    geom1 = collision_model.geometryObjects[pair.first]
-    #    geom2 = collision_model.geometryObjects[pair.second]
-    ##    res = collision_data.collisionResults[k]
-
-    #    #if pin.computeCollision(geom1, geom2, res):
-    #    #    if res.isCollision():
-    #    #        print(f"Collision between {geom1.name} and {geom2.name}")
-    #    #    else:
-    #    #        print(f"No collision between {geom1.name} and {geom2.name}")
 
     # Get the frame ID of the end effector
     #ee_frame_name = "tool0"   # or "ee_link" depending on your URDF
@@ -361,10 +326,12 @@ if __name__ == '__main__':
     
     ## Get placement (position + orientation)
     #placement = data.oMf[ee_frame_id]
-    translation, rotation = get_ee_position_and_rotation(model, data, q)
+
+
+    #translation, rotation = get_ee_position_and_rotation(model, data, q)
     
     # Print results
-    print(f"End-effector translation (xyz): {translation}")
-    print(f"End-effector rotation matrix:\n{rotation}")
+    #print(f"End-effector translation (xyz): {translation}")
+    #print(f"End-effector rotation matrix:\n{rotation}")
 
     main()
