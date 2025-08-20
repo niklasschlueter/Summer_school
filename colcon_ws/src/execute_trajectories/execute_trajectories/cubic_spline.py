@@ -261,32 +261,31 @@ if __name__ == '__main__':
 
     q = np.array([0.0, -1.57, 0.0, -1.57, 0.0, 0.0])
     #q = np.array([0.0, -1.57, 3.14, -1.57, 3.14, 0.0])
-    pin.forwardKinematics(model, data, q)
-    pin.updateFramePlacements(model, data)
 
-    # Update Geometry models
-    pin.updateGeometryPlacements(model, data, collision_model, collision_data)
-    pin.updateGeometryPlacements(model, data, visual_model, visual_data)
-
-    ## Print out the placement of each joint of the kinematic tree
-    #print("\nJoint placements:")
-    #for name, oMi in zip(model.names, data.oMi):
-    #    print("{:<24} : {: .2f} {: .2f} {: .2f}".format(name, *oMi.translation.T.flat))
-
-    ## Print out the placement of each collision geometry object
-    #print("\nCollision object placements:")
-    #for k, oMg in enumerate(collision_data.oMg):
-    #    print("{:d} : {: .2f} {: .2f} {: .2f}".format(k, *oMg.translation.T.flat))
-
-    ## Print out the placement of each visual geometry object
-    #print("\nVisual object placements:")
-    #for k, oMg in enumerate(visual_data.oMg):
-    #    print("{:d} : {: .2f} {: .2f} {: .2f}".format(k, *oMg.translation.T.flat))
-
-    def get_ee_position_and_rotation(model, data, q):
-        """Get end-effector position and orientation"""
-        pin.forwardKinematics(model, data, q)
+    def update_pinocchio(model, data, collision_model, collision_data, visual_model, visual_data, q):
+        """Update Pinocchio model and data with given configuration q"""
+        # Update joint configuration
+        pin.framesForwardKinematics(model, data, q)
         pin.updateFramePlacements(model, data)
+        
+        # Update geometry placements
+        pin.updateGeometryPlacements(model, data, collision_model, collision_data)
+        pin.updateGeometryPlacements(model, data, visual_model, visual_data)
+
+    update_pinocchio(model, data, collision_model, collision_data, visual_model, visual_data, q)
+
+    ## Pinocchio Updates
+    #pin.forwardKinematics(model, data, q)
+    #pin.updateFramePlacements(model, data)
+    ## Update Geometry models
+    #pin.updateGeometryPlacements(model, data, collision_model, collision_data)
+    #pin.updateGeometryPlacements(model, data, visual_model, visual_data)
+
+    def get_ee_position_and_rotation(model, data, q, update=True):
+        """Get end-effector position and orientation"""
+        if update:
+            pin.forwardKinematics(model, data, q)
+            pin.updateFramePlacements(model, data)
         
         ee_frame_id = model.getFrameId('tool0')
         ee_position = data.oMf[ee_frame_id].translation
@@ -326,10 +325,11 @@ if __name__ == '__main__':
     pin.forwardKinematics(model, data, q)
     pin.updateGeometryPlacements(model, data, collision_model, collision_data)
 
-    #collisions = pin.computeCollisions(model, collision_model, collision_data, q, False)  # last param: enableAllContacts=False
-    collisions = pin.computeCollisions(model, data, collision_model, collision_data, q, False)
-    print(f"\nCollision check results: {collisions}")
+    # Check for collisions - True means at least one collision detected
+    collision_flag = pin.computeCollisions(model, data, collision_model, collision_data, q, False)
+    print(f"\nCollision check results: {collision_flag}")
 
+    # For debug
     # Print the status of collision for all collision pairs
     for k in range(len(collision_model.collisionPairs)):
         cr = collision_data.collisionResults[k]
