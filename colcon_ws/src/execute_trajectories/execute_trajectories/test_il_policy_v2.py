@@ -175,13 +175,14 @@ def set_random_payload(env, randomize=True):
 # -------------------- rollout --------------------
 
 class DeploymentPolicy():
-    def __init__(self):
+    def __init__(self, path ="models/trained_models_no_randomization/best.pt"):
         # Device selection
         self.device = torch.device("cuda")
     
         #ckpt_path = find_best_checkpoint("dagger_results_no_effort/model_iter_2/best.pt")
         #ckpt_path = find_best_checkpoint("models/dagger_results_delta_penalty/model_iter_1/best.pt")
-        ckpt_path = find_best_checkpoint("models/trained_models_no_randomization/best.pt")
+        #ckpt_path = find_best_checkpoint("models/trained_models_no_randomization/best.pt")
+        ckpt_path = find_best_checkpoint(path)
         #ckpt_path = find_best_checkpoint("best_dagger_results_fast/model_iter_10/best.pt")
     
         # Load model first to get checkpoint object
@@ -256,8 +257,8 @@ class DeploymentPolicy():
 
         #while True:
 
-        self.joint_low = -0.2
-        self.joint_high = 0.2
+        self.joint_low = -2.0
+        self.joint_high = 2.0
 
     def run(self, x):
         # print(f"\n=== Episode {ep+1}/{args.episodes} ===")
