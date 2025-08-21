@@ -78,7 +78,7 @@ ros2 launch ur_simulation_gz ur_sim_control.launch.py initial_joint_controller:=
 To run it with direct joint control run 
 
 ```
-ros2 launch ur_robot_driver ur_control.launch.py ur_type:=ur5e robot_ip:=192.168.2.3 initial_joint_controller:=forward_position_controller
+ros2 launch ur_robot_driver ur_control.launch.py ur_type:=ur5e robot_ip:=192.168.2.1 initial_joint_controller:=forward_position_controller
 ```
 
 In another terminal do 
@@ -91,4 +91,10 @@ or for direct joint control:
 
 ```
 python3 cubic_spline.py 
+```
+
+
+To install torch:
+```
+pip3 install torch --index-url https://download.pytorch.org/whl/cu126 --break-system-packages
 ```

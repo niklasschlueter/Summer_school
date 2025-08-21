@@ -57,7 +57,7 @@ class MovingAverageFilter:
             raise ValueError(f"Expected shape ({self.vector_size},), got {new_value.shape}")
 
         self.buffer.append(new_value)
-        print(f"Buffer size: {len(self.buffer)}")
+        #print(f"Buffer size: {len(self.buffer)}")
         return np.mean(self.buffer, axis=0) if len(self.buffer) > 0 else new_value
 
 

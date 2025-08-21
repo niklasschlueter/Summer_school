@@ -76,4 +76,4 @@ def plot_multiple_runs(pattern="run_*.npz", alpha=0.2, normalize_time=True):
 
 if __name__ == "__main__":
     #plot_npz("runs/run_0.npz")
-    plot_multiple_runs("runs_3/run_*.npz", alpha=0.2)
+    plot_multiple_runs("runs_5/run_*.npz", alpha=0.2)

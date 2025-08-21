@@ -50,7 +50,7 @@ class CubicSplineTrajectoryPlanner(Node):
         self.current_efforts = None
         self.filtered_current_efforts = np.zeros(6)
 
-        self.efforts_filter = MovingAverageFilter(window_size=20, vector_size=6)
+        self.efforts_filter = MovingAverageFilter(window_size=100, vector_size=6)
 
         self.zero_ee_force = np.zeros(3)
         self.zero_ee_torque = np.zeros(3)
@@ -61,8 +61,8 @@ class CubicSplineTrajectoryPlanner(Node):
         self.filtered_current_forces = np.zeros(3)
         self.filtered_current_torques = np.zeros(3)
 
-        self.forces_filter = MovingAverageFilter(window_size=20, vector_size=3)
-        self.torques_filter = MovingAverageFilter(window_size=20, vector_size=3)
+        self.forces_filter = MovingAverageFilter(window_size=250, vector_size=3)
+        self.torques_filter = MovingAverageFilter(window_size=250, vector_size=3)
 
 
         self.joint_names = ['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint', 
@@ -220,7 +220,7 @@ class CubicSplineTrajectoryPlanner(Node):
         msg.data = positions
         self.position_publisher.publish(msg)
         
-        if self.current_trajectory_index % 25 == 0:  # Log every 0.5 seconds
+        if self.current_trajectory_index % 500 == 0:  # Log every 0.5 seconds
             self.get_logger().info(f"Executing trajectory: {self.current_trajectory_index + 1}"
                                   f"/{len(self.trajectory_points)} points, t={_time:.2f}s")
         
@@ -230,10 +230,11 @@ class CubicSplineTrajectoryPlanner(Node):
             t=time.perf_counter(),
             pos=self.current_positions,
             vel=self.current_velocities,
-            eff=self.current_efforts,
-            ft=np.concatenate((self.ee_force, self.ee_torque)),
+            eff=self.filtered_current_efforts,
+            ft=np.concatenate((self.filtered_ee_force, self.filtered_ee_torque)),
             action=positions - self.current_positions# Delta action used!
         )
+
 
     def run_policy(self):
 
@@ -248,9 +249,12 @@ class CubicSplineTrajectoryPlanner(Node):
 
         x = np.concatenate((self.current_positions, self.current_velocities, self.filtered_current_efforts, self.filtered_ee_force, self.filtered_ee_torque)).astype(np.float32)
         #print(f"np.shape(x): {np.shape(x)}")
-        #x = np.concatenate((self.current_positions, self.current_velocities, np.zeros_like(self.filtered_current_efforts), np.zeros(3), np.zeros(3))).astype(np.float32)
+        #x = np.concatenate((self.current_positions, self.current_velocities)).astype(np.float32)#, np.zeros_like(self.filtered_current_efforts), np.zeros(3), np.zeros(3))).astype(np.float32)
         #print(f"x: {x}")
+        t0 = time.perf_counter()
         pred = self.policy.run(x)
+        t1 = time.perf_counter()
+        #print(f"Policy inference time: {t1 - t0:.4f} seconds")
         positions = self.current_positions + pred
 
 
@@ -389,7 +393,7 @@ def main():
         "position_2": [1.57, -1.57, 1.57, -1.57, -1.57, 0.0],
     }
 
-    duration = 3.0
+    duration = 2.0
     #target_positions = predefined_positions['darrens_home']  # Default to 'ready' position
     #target_positions = predefined_positions['home']  # Default to 'ready' position
     
@@ -418,41 +422,34 @@ def main():
 
     try:
         planner.set_current_ft_measuerements_as_zero()
-        episodes = 100
+        episodes = 1 # 100
         for episode in range(episodes):
             # Delete all the old data
             planner.state_logger.reset() 
 
             print(f"\n EPISODE {episode}")
 
-            #recorder = RosbagRecorder(["/joint_states", '/forward_position_controller/commands'], output_dir="bags")
-            #recorder.start(f"bag_forward_{episode}")
-            #time.sleep(1)
-            start_position = predefined_positions["darrens_home"] + np.random.uniform(-0.1, 0.1, size=6)
-            #if planner.start_trajectory(predefined_positions["darrens_home"], duration):
-            if planner.start_trajectory(start_position, duration):
-                t0 = time.perf_counter()
-                #print("Trajectory started! Waiting for completion...")
-                print(f"FORWARD")
+            #start_position = predefined_positions["darrens_home"] + np.random.uniform(-0.0, 0.0, size=6)
+            #if planner.start_trajectory(start_position, duration):
+            #    t0 = time.perf_counter()
+            #    #print("Trajectory started! Waiting for completion...")
+            #    print(f"FORWARD")
 
-                # Wait for trajectory to finish
-                planner.wait_for_trajectory_completion()
+            #    # Wait for trajectory to finish
+            #    planner.wait_for_trajectory_completion()
 
-                print("\n✅ Trajectory completed successfully!")
-                print_positions(planner.current_positions, "Final position")
-                t1 = time.perf_counter()
-                print(f"Total execution time: {t1 - t0:.2f} seconds")
-                planner.stop_trajectory()
-                #recorder.stop()
+            #    print("\n✅ Trajectory completed successfully!")
+            #    print_positions(planner.current_positions, "Final position")
+            #    t1 = time.perf_counter()
+            #    print(f"Total execution time: {t1 - t0:.2f} seconds")
+            #    planner.stop_trajectory()
+            #    #recorder.stop()
 
-            else:
-                print("❌ Failed to start trajectory!")
-                return 1
+            #else:
+            #    print("❌ Failed to start trajectory!")
+            #    return 1
 
-            #recorder = RosbagRecorder(["/joint_states", '/forward_position_controller/commands'], output_dir="bags")
-            #recorder.start(f"bag_backward_{episode}")
-            #time.sleep(1)
-            end_position = predefined_positions["position_2"] + np.random.uniform(-0.1, 0.1, size=6)
+            end_position = predefined_positions["position_2"] + np.random.uniform(-0.0, 0.0, size=6)
             if planner.start_trajectory(end_position, duration):
                 t0 = time.perf_counter()
                 print(f"BACKWARD")
@@ -473,28 +470,28 @@ def main():
 
 
 
-            file_path = f"runs_3/run_{episode}.npz" 
-            os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            planner.state_logger.save(file_path)
+            #file_path = f"runs_6/run_{episode}.npz" 
+            #os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            #planner.state_logger.save(file_path)
 
 
 
         #planner.set_current_ft_measuerements_as_zero()
-        #if planner.start_policy():
-        #    t0 = time.perf_counter()
-        #    print("Trajectory started! Waiting for completion...")
-        #    
-        #    # Wait for trajectory to finish
-        #    planner.wait_for_trajectory_completion()
-        #    
-        #    print("\n✅ Trajectory completed successfully!")
-        #    print_positions(planner.current_positions, "Final position")
-        #    t1 = time.perf_counter()
-        #    print(f"Total execution time: {t1 - t0:.2f} seconds")
-        #    
-        #else:
-        #    print("❌ Failed to start trajectory!")
-        #    return 1
+        if planner.start_policy():
+            t0 = time.perf_counter()
+            print("Trajectory started! Waiting for completion...")
+            
+            # Wait for trajectory to finish
+            planner.wait_for_trajectory_completion()
+            
+            print("\n✅ Trajectory completed successfully!")
+            print_positions(planner.current_positions, "Final position")
+            t1 = time.perf_counter()
+            print(f"Total execution time: {t1 - t0:.2f} seconds")
+            
+        else:
+            print("❌ Failed to start trajectory!")
+            return 1
             
     except KeyboardInterrupt:
         print(f"Trajectory interrupted by user")

@@ -181,7 +181,7 @@ class DeploymentPolicy():
     
         #ckpt_path = find_best_checkpoint("dagger_results_no_effort/model_iter_2/best.pt")
         #ckpt_path = find_best_checkpoint("models/dagger_results_delta_penalty/model_iter_1/best.pt")
-        ckpt_path = find_best_checkpoint("models/trained_models/best.pt")
+        ckpt_path = find_best_checkpoint("models/trained_models_no_randomization/best.pt")
         #ckpt_path = find_best_checkpoint("best_dagger_results_fast/model_iter_10/best.pt")
     
         # Load model first to get checkpoint object
@@ -256,8 +256,8 @@ class DeploymentPolicy():
 
         #while True:
 
-        self.joint_low = -0.02
-        self.joint_high = 0.02
+        self.joint_low = -0.2
+        self.joint_high = 0.2
 
     def run(self, x):
         # print(f"\n=== Episode {ep+1}/{args.episodes} ===")
