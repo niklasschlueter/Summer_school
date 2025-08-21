@@ -180,7 +180,8 @@ class DeploymentPolicy():
         self.device = torch.device("cuda")
     
         #ckpt_path = find_best_checkpoint("dagger_results_no_effort/model_iter_2/best.pt")
-        ckpt_path = find_best_checkpoint("models/dagger_results_delta_penalty/model_iter_1/best.pt")
+        #ckpt_path = find_best_checkpoint("models/dagger_results_delta_penalty/model_iter_1/best.pt")
+        ckpt_path = find_best_checkpoint("models/trained_models/best.pt")
         #ckpt_path = find_best_checkpoint("best_dagger_results_fast/model_iter_10/best.pt")
     
         # Load model first to get checkpoint object

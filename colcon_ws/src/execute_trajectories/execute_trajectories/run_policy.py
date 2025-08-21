@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float64MultiArray
@@ -56,6 +57,14 @@ class CubicSplineTrajectoryPlanner(Node):
 
         self.ee_force = None
         self.ee_torque = None
+
+        self.filtered_current_forces = np.zeros(3)
+        self.filtered_current_torques = np.zeros(3)
+
+        self.forces_filter = MovingAverageFilter(window_size=20, vector_size=3)
+        self.torques_filter = MovingAverageFilter(window_size=20, vector_size=3)
+
+
         self.joint_names = ['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint', 
                            'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint']
         
@@ -128,6 +137,7 @@ class CubicSplineTrajectoryPlanner(Node):
         self.zero_ee_torque = self.ee_torque# - self.zero_ee_torque
 
 
+
     def wrench_callback(self, msg: WrenchStamped):
         """Callback for force/torque sensor data"""
         force = msg.wrench.force
@@ -136,8 +146,12 @@ class CubicSplineTrajectoryPlanner(Node):
         self.ee_force = np.array([force.x, force.y, force.z])
         self.ee_torque = np.array([torque.x, torque.y, torque.z])
 
-        self.zero_ee_force = self.ee_force - self.zero_ee_force
-        self.zero_ee_torque = self.ee_torque - self.zero_ee_torque
+        self.ee_force = self.ee_force - self.zero_ee_force
+        self.ee_torque = self.ee_torque - self.zero_ee_torque
+
+
+        self.filtered_ee_force = self.forces_filter.update(self.ee_force)
+        self.filtered_ee_torque = self.torques_filter.update(self.ee_torque)
 
         #self.get_logger().info(
         #print(f"Force: {self.ee_force}, Torque: {self.ee_torque}")
@@ -232,9 +246,9 @@ class CubicSplineTrajectoryPlanner(Node):
             return
         
 
-        #x = np.concatenate((self.current_positions, self.current_velocities, self.current_efforts, self.ee_force, self.ee_torque)).astype(np.float32)
+        x = np.concatenate((self.current_positions, self.current_velocities, self.filtered_current_efforts, self.filtered_ee_force, self.filtered_ee_torque)).astype(np.float32)
         #print(f"np.shape(x): {np.shape(x)}")
-        x = np.concatenate((self.current_positions, self.current_velocities, np.zeros_like(self.filtered_current_efforts), np.zeros(3), np.zeros(3))).astype(np.float32)
+        #x = np.concatenate((self.current_positions, self.current_velocities, np.zeros_like(self.filtered_current_efforts), np.zeros(3), np.zeros(3))).astype(np.float32)
         #print(f"x: {x}")
         pred = self.policy.run(x)
         positions = self.current_positions + pred
@@ -255,11 +269,11 @@ class CubicSplineTrajectoryPlanner(Node):
         
         self.current_trajectory_index += 1
         self.state_logger.log(
-            time=time.perf_counter(),
+            t=time.perf_counter(),
             pos=self.current_positions,
             vel=self.current_velocities,
-            eff=self.current_efforts,
-            ft=np.concatenate((self.ee_force, self.ee_torque)),
+            eff=self.filtered_current_efforts,
+            ft=np.concatenate((self.filtered_ee_force, self.filtered_ee_torque)),
             action=pred # Delta action used!
         )
     
@@ -404,7 +418,7 @@ def main():
 
     try:
         planner.set_current_ft_measuerements_as_zero()
-        episodes = 50
+        episodes = 100
         for episode in range(episodes):
             # Delete all the old data
             planner.state_logger.reset() 
@@ -414,7 +428,7 @@ def main():
             #recorder = RosbagRecorder(["/joint_states", '/forward_position_controller/commands'], output_dir="bags")
             #recorder.start(f"bag_forward_{episode}")
             #time.sleep(1)
-            start_position = predefined_positions["darrens_home"] + np.random.uniform(-0.05, 0.05, size=6)
+            start_position = predefined_positions["darrens_home"] + np.random.uniform(-0.1, 0.1, size=6)
             #if planner.start_trajectory(predefined_positions["darrens_home"], duration):
             if planner.start_trajectory(start_position, duration):
                 t0 = time.perf_counter()
@@ -438,7 +452,7 @@ def main():
             #recorder = RosbagRecorder(["/joint_states", '/forward_position_controller/commands'], output_dir="bags")
             #recorder.start(f"bag_backward_{episode}")
             #time.sleep(1)
-            end_position = predefined_positions["position_2"] + np.random.uniform(-0.05, 0.05, size=6)
+            end_position = predefined_positions["position_2"] + np.random.uniform(-0.1, 0.1, size=6)
             if planner.start_trajectory(end_position, duration):
                 t0 = time.perf_counter()
                 print(f"BACKWARD")
@@ -459,7 +473,10 @@ def main():
 
 
 
-            planner.state_logger.save(f"runs/run_{episode}") 
+            file_path = f"runs_3/run_{episode}.npz" 
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            planner.state_logger.save(file_path)
+
 
 
         #planner.set_current_ft_measuerements_as_zero()
