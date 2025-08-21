@@ -650,9 +650,9 @@ def main():
                 os.makedirs(os.path.dirname(file_path), exist_ok=True)
                 planner.state_logger.save(file_path)
 
-    def run_dagger(data_dir="runs_7", episodes=10, record=True, move_to_start_position=True, start_idx=0, episode_offset=0):
+    def run_dagger(data_dir="runs_7", episodes=10, record=True, move_to_start_position=True, start_idx=0, episodes_offset=0):
             planner.set_current_ft_measuerements_as_zero()
-            for episode in range(episode_offset, episodes):
+            for episode in range(episodes_offset, episodes):
                 # Delete all the old data
 
                 if move_to_start_position:

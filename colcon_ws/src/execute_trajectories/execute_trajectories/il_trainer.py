@@ -2,9 +2,11 @@
 import json
 import os
 import glob
+import time
+import csv
 from dataclasses import asdict
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List, Dict, Any
 
 import numpy as np
 import torch
@@ -225,9 +227,19 @@ class ILTrainer:
         self.normalizer_path = self.out_dir / "normalizer.json"
         self.config_path = self.out_dir / "config.json"
 
+        # ---- metrics files ----
+        self.metrics_jsonl = self.out_dir / "metrics.jsonl"
+        self.metrics_csv = self.out_dir / "metrics.csv"
+        self.history: List[Dict[str, Any]] = []
+        self._resume_metrics()  # load existing metrics if present
+
         # Try to resume if a checkpoint already exists
         if self.ckpt_path.exists():
             self._load_checkpoint(self.ckpt_path)
+
+        # store base hparams
+        self._base_lr = float(lr)
+        self._base_wd = float(weight_decay)
 
     # ---------- Public API ----------
     def fit(
@@ -278,10 +290,7 @@ class ILTrainer:
                     self.norm = BlockNormalizer(idx_q, idx_qd, np.array([]), idx_ft)
                 self.norm.fit(X[train_mask])
                 print("Fitted new normalizer.")
-            else:
-                # if you prefer to update normalization with new data:
-                # self.norm.partial_fit(X[train_mask])  # if your BlockNormalizer supports it
-                pass
+                
             X = self.norm.transform(X)
             print(f"Applied normalization to {X.shape[1]} features")
 
@@ -362,11 +371,13 @@ class ILTrainer:
         # Train
         print(f"\nStarting/continuing training for {epochs} epochs on device: {self.device}")
         for epoch in range(1, epochs + 1):
+            epoch_t0 = time.time()
             self.model.train()
             pbar = tqdm(tr_loader, desc=f'Epoch {epoch:3d}/{epochs}', leave=False)
 
             epoch_loss = 0.0
             epoch_samples = 0
+            steps = 0
 
             for xb, yb in pbar:
                 xb = xb.to(self.device, non_blocking=True)
@@ -394,6 +405,7 @@ class ILTrainer:
                 bs = xb.size(0)
                 epoch_loss += batch_loss * bs
                 epoch_samples += bs
+                steps += 1
                 pbar.set_postfix({'loss': f'{batch_loss:.6f}', 'lr': f'{self.opt.param_groups[0]["lr"]:.2e}'})
 
             avg_train_loss = epoch_loss / max(epoch_samples, 1)
@@ -402,8 +414,24 @@ class ILTrainer:
             if self.sched is not None:
                 self.sched.step(val_mse)
 
+            cur_lr = float(self.opt.param_groups[0]['lr'])
+            wall = float(time.time() - epoch_t0)
+
             print(f"Epoch {epoch:3d}: train_loss={avg_train_loss:.6f}, val_mse={val_mse:.6f}, "
-                  f"val_mae={val_mae:.6f}, lr={self.opt.param_groups[0]['lr']:.2e}")
+                  f"val_mae={val_mae:.6f}, lr={cur_lr:.2e}, steps={steps}, time={wall:.2f}s")
+
+            # ---- record metrics ----
+            self._record_metric({
+                "epoch": epoch if not self.history else self.history[-1]["epoch"] + 1,
+                "train_loss": float(avg_train_loss),
+                "val_mse": float(val_mse),
+                "val_mae": float(val_mae),
+                "lr": cur_lr,
+                "steps": int(steps),
+                "train_samples": int(epoch_samples),
+                "time_sec": wall,
+                "data_path": str(data_path),
+            })
 
             if val_mse < self.best_val:
                 self.best_val = val_mse
@@ -420,7 +448,47 @@ class ILTrainer:
             "final_val_mse": final_mse,
             "final_val_mae": final_mae,
             "checkpoint": str(self.ckpt_path),
+            "metrics_jsonl": str(self.metrics_jsonl),
+            "metrics_csv": str(self.metrics_csv),
         }
+
+    # ---------- Metrics helpers ----------
+    def _resume_metrics(self):
+        """Load existing metrics from jsonl if present (for continuous logging across fit calls)."""
+        if self.metrics_jsonl.exists():
+            try:
+                with open(self.metrics_jsonl, "r") as f:
+                    for line in f:
+                        self.history.append(json.loads(line))
+            except Exception:
+                # If corrupted, start fresh (but don't delete the file)
+                pass
+
+    def _record_metric(self, row: Dict[str, Any]):
+        """Append both JSONL and CSV and keep in-memory history."""
+        self.history.append(row)
+
+        # JSONL append
+        with open(self.metrics_jsonl, "a") as f:
+            f.write(json.dumps(row) + "\n")
+
+        # CSV append (create header if not exists)
+        write_header = not self.metrics_csv.exists()
+        with open(self.metrics_csv, "a", newline="") as f:
+            writer = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "epoch", "train_loss", "val_mse", "val_mae",
+                    "lr", "steps", "train_samples", "time_sec", "data_path"
+                ],
+            )
+            if write_header:
+                writer.writeheader()
+            writer.writerow(row)
+
+    def get_history(self) -> List[Dict[str, Any]]:
+        """In-memory metrics; useful for programmatic plotting."""
+        return list(self.history)
 
     # ---------- Checkpointing ----------
     def _save_checkpoint(self, path: Path, epoch: int, train_loss: float, val_loss: float, episode_info: dict):
@@ -466,14 +534,11 @@ class ILTrainer:
 
         # Restore normalizer if present and not already in memory
         if self.normalize and ('normalizer' in ckpt) and (self.norm is None):
-            # infer normalizer type by saved state structure
-            # Try BlockNormalizer24 first; fall back to BlockNormalizer
-            # try:
-            self.norm = BlockNormalizer24(np.arange(0))  # dummy idx_ft; will be overwritten by load
-            self.norm.load_state_dict(ckpt['normalizer'])
-            # except Exception:
-            #     self.norm = BlockNormalizer(np.arange(6), np.arange(6, 12), np.array([]), np.arange(18, 24))
-            #     self.norm.load_state_dict(ckpt['normalizer'])
+            idx_ft = np.arange(18, 24)
+            norm_data = ckpt['normalizer']
+            print("[norm] Loaded normalizer from checkpoint")
+            self.norm = BlockNormalizer24(idx_ft)     
+            self.norm.load_state_dict(norm_data)       
 
         self.best_val = float(ckpt.get('best_val', self.best_val))
 
@@ -481,21 +546,18 @@ class ILTrainer:
     def _get_lr(self):
         if self.cfg is not None:
             return self.cfg.lr
-        return 1e-3
+        return self._base_lr
 
     def _get_wd(self):
         if self.cfg is not None:
             return self.cfg.weight_decay
-        return 1e-4
+        return self._base_wd
 
 
 def main():
     print("Starting Training...")
-    # from il_trainer import ILTrainer
-
-    # 1) Create the trainer once (it auto-resumes if a checkpoint exists in out_dir)
     trainer = ILTrainer(
-        out_dir="trained_models_no_randomization",
+        out_dir="trained_models_no_randomization_plot",
         model_ctor=ILPolicy,      # or ILPolicyV2
         model_kwargs={},          # extra args for your model class if needed
         normalize=True,
@@ -505,7 +567,6 @@ def main():
         weight_decay=1e-4,
     )
 
-    # 2) Train on your current directory of trajectories
     trainer.fit(
         data_path="real_data/trial_3_no_randomization",
         pattern="run_*.npz",
@@ -513,7 +574,7 @@ def main():
         layers=4,
         dropout=0.1,
         batch_size=512,
-        epochs=50,                # run however many you want now
+        epochs=50,
         val_ratio=0.2,
         num_workers=4,
         noise_std=0.005,
@@ -523,13 +584,12 @@ def main():
         seed=0,
     )
 
-    # 3) Later, after new data arrives, call fit() AGAIN.
-    #    It will continue from the existing model/optimizer instead of resetting.
-    trainer.fit(
-        data_path="real_data/trial_3_no_randomization",
-        pattern="run_*.npz",
-        epochs=25,                # more epochs over the new data
-    )
+    # trainer.fit(
+    #     data_path="real_data/trial_3_no_randomization",
+    #     pattern="run_*.npz",
+    #     epochs=25,
+    # )
+
 
 if __name__ == '__main__':
     main()

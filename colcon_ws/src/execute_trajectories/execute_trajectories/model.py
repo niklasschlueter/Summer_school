@@ -28,6 +28,9 @@ class BlockNormalizer24:
     def state_dict(self):
         return {"mean": self.mean.tolist(), "std": self.std.tolist()}
 
+    def load_state_dict(self, norm_data):
+        self.mean = np.array(norm_data['mean'])
+        self.std = np.array(norm_data['std'])
 
 # ============== Normalization ==============
 class BlockNormalizer:
