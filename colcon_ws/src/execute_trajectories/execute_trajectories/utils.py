@@ -45,21 +45,43 @@ def get_ee_position_and_rotation(model, data, q, update=True):
 
 
 
+##class MovingAverageFilter:
+##    def __init__(self, window_size=5, vector_size=6):
+##        self.window_size = window_size
+##        self.buffer = deque(maxlen=window_size)
+##        self.vector_size = vector_size
+##
+##    def update(self, new_value: np.ndarray) -> np.ndarray:
+##        """Add new 6x1 vector and return moving average"""
+##        if new_value.shape != (self.vector_size,):
+##            raise ValueError(f"Expected shape ({self.vector_size},), got {new_value.shape}")
+##
+##        self.buffer.append(new_value)
+##        #print(f"Buffer size: {len(self.buffer)}")
+##        return np.mean(self.buffer, axis=0) if len(self.buffer) > 0 else new_value
+
+
 class MovingAverageFilter:
     def __init__(self, window_size=5, vector_size=6):
         self.window_size = window_size
-        self.buffer = deque(maxlen=window_size)
         self.vector_size = vector_size
+        self.buffer = deque(maxlen=window_size)
+        self.running_sum = np.zeros(vector_size, dtype=float)
 
     def update(self, new_value: np.ndarray) -> np.ndarray:
-        """Add new 6x1 vector and return moving average"""
+        """Add new vector and return moving average (O(1) per update)."""
         if new_value.shape != (self.vector_size,):
             raise ValueError(f"Expected shape ({self.vector_size},), got {new_value.shape}")
 
-        self.buffer.append(new_value)
-        #print(f"Buffer size: {len(self.buffer)}")
-        return np.mean(self.buffer, axis=0) if len(self.buffer) > 0 else new_value
+        if len(self.buffer) == self.window_size:
+            # Remove oldest from running sum
+            oldest = self.buffer[0]
+            self.running_sum -= oldest
 
+        self.buffer.append(new_value)
+        self.running_sum += new_value
+
+        return self.running_sum / len(self.buffer)
 
 
 class StateLogger:

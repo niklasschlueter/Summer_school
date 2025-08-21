@@ -244,12 +244,12 @@ class CubicSplineTrajectoryPlanner(Node):
     def compute_trajectory_point(self):
         """Execute one point of the trajectory"""
         #print(f"current position: {self.current_positions}")
-        collision_flag = self.check_for_collisions(self.current_positions)
+        #collision_flag = self.check_for_collisions(self.current_positions)
 
-        if collision_flag or (self.current_trajectory_index >= len(self.trajectory_points) or 
-            not self.executing_trajectory):
-            self.stop_trajectory()
-            return
+        #if collision_flag or (self.current_trajectory_index >= len(self.trajectory_points) or 
+        #    not self.executing_trajectory):
+        #    self.stop_trajectory()
+        #    return
         
         _time, positions = self.trajectory_points[self.current_trajectory_index]
         return positions
@@ -262,28 +262,10 @@ class CubicSplineTrajectoryPlanner(Node):
     def compute_policy(self):
 
         """Execute one point of the trajectory"""
-        #print(f"current position: {self.current_positions}")
-        collision_flag = self.check_for_collisions(self.current_positions)
-
-        if collision_flag or not self.executing_trajectory:
-            self.stop_trajectory()
-            return
-
-        ##print(f"current trajectory index: {self.current_trajectory_index}, "
-        ##      f"trajectory length: {len(self.trajectory_points)}")
-
-        #if collision_flag or (self.current_trajectory_index >= len(self.trajectory_points) or 
-        #    not self.executing_trajectory):
-        #    self.stop_trajectory()
-        #    return
         
 
         x = np.concatenate((self.current_positions, self.current_velocities, self.filtered_current_efforts, self.filtered_ee_force, self.filtered_ee_torque)).astype(np.float32)
-        #print(f"np.shape(x): {np.shape(x)}")
-        #x = np.concatenate((self.current_positions, self.current_velocities)).astype(np.float32)#, np.zeros_like(self.filtered_current_efforts), np.zeros(3), np.zeros(3))).astype(np.float32)
-        #print(f"x: {x}")
         pred = self.policy.run(x)
-        #print(f"Policy inference time: {t1 - t0:.4f} seconds")
         positions = self.current_positions + pred
 
 
@@ -407,9 +389,6 @@ class CubicSplineTrajectoryPlanner(Node):
             duration
         )
         
-        self.get_logger().info(f"Planned trajectory: {len(self.trajectory_points)} points, "
-                              f"{duration or self.trajectory_duration:.2f}s duration")
-        
         self.executing_trajectory = True
         self.current_trajectory_index = 0
         
@@ -426,16 +405,13 @@ class CubicSplineTrajectoryPlanner(Node):
             return
 
         action_expert = self.compute_trajectory_point()
-        action_policy = self.compute_policy()
 
-        if np.random.uniform(0,1) < self.beta:
+        if np.random.uniform(0,1) <= self.beta:
             self.publish_action(action_expert)
         else:
+            action_policy = self.compute_policy()
             self.publish_action(action_policy)
 
-        #if self.current_trajectory_index % 500 == 0:  # Log every 0.5 seconds
-        #    self.get_logger().info(f"Executing trajectory: {self.current_trajectory_index + 1}"
-        #                          f"/{len(self.trajectory_points)} points, t={_time:.2f}s")
         
         self.current_trajectory_index += 1
 
@@ -650,7 +626,7 @@ def main():
                 os.makedirs(os.path.dirname(file_path), exist_ok=True)
                 planner.state_logger.save(file_path)
 
-    def run_dagger(data_dir="runs_7", episodes=10, record=True, move_to_start_position=True, start_idx=0, episodes_offset=0):
+    def run_dagger_func(data_dir="runs_7", episodes=10, record=True, move_to_start_position=True, start_idx=0, episodes_offset=0):
             planner.set_current_ft_measuerements_as_zero()
             for episode in range(episodes_offset, episodes):
                 # Delete all the old data
@@ -737,9 +713,9 @@ def main():
         )
         iterations = 5
         episodes = 50 #50
-        for iter in range(1, iterations):
+        for iter in range(0, iterations):
             planner.beta = max(0.1, 1.0 - iter*0.3)
-            run_dagger(data_dir="runs_dagger", episodes=episodes, start_idx=iter*episodes, episodes_offset=30)
+            run_dagger_func(data_dir="runs_dagger", episodes=episodes, start_idx=iter*episodes, episodes_offset=0)
 
             trainer.fit(
                 data_path="runs/runs_dagger",
